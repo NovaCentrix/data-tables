@@ -48,10 +48,11 @@ class Category(IntEnum):
   inkjet = 3
   screen = 4
   aerosol = 5
+  carbon = 6
 
 Catname = { Category.metal: 'metal', Category.flexo: 'flexo', 
             Category.inkjet: 'inkjet', Category.screen: 'screen',
-            Category.aerosol: 'aerosol' }
+            Category.aerosol: 'aerosol', Category.carbon: 'carbon' }
 
 class PCB_weight:
   def __init__(self, weight, microns, mils):
@@ -155,6 +156,10 @@ matls = [
 #  M( C.flexo,   'pfi-722',     V( BR,  6.00,  5.00,  7.00 ),  V( TH,  0.770,  0.140,  1.400 ),  V( SR, 200,  50, 350 ) ),
 #  M( C.flexo,   'pfi-rsa6004', V( BR, 11.00, 10.00, 12.00 ),  V( TH,  0.303,  0.120,  0.480 ),  V( SR, 525, 250, 800 ) ),
 #  M( C.flexo,   'pfi-rsa6012', V( BR,  9.00,  8.00, 10.00 ),  V( TH,  0.315,  0.130,  0.500 ),  V( SR, 400, 200, 600 ) ),
+#
+  M( C.carbon,  'jr-700lv',     V( BR, 1.200e6, 1.100e6, 1.300e6 ),  V( TH,  1.000,  0.200,  2.000 ) ), # inkjet
+  M( C.carbon,  'jr-700hv',     V( BR, 0.550e6, 0.520e6, 0.850e6 ),  V( TH,  1.000,  0.200,  2.000 ) ), # inkjet
+  M( C.carbon,  'hpr-059',      V( BR, 0.762e6, 0.698e6, 0.889e6 ),  V( TH, 20.000,  5.000, 50.000 ) ), # screen
 
 ]
 
@@ -171,6 +176,7 @@ byflexo = [ x for x in matls if x.cat is Category.flexo ]
 byinkjet = [ x for x in matls if x.cat is Category.inkjet ]
 byscreen = [ x for x in matls if x.cat is Category.screen ]
 byaerosol = [ x for x in matls if x.cat is Category.aerosol ]
+bycarbon = [ x for x in matls if x.cat is Category.carbon ]
 
 
 # This only used to back out thickness from certain data sheets
@@ -366,20 +372,26 @@ class Plot2D:
     self.ax.scatter(x,y, color=plotcolor, s=100)
     #self.ax.legend( [ mlist[0].cat ] )
       
-  def sheet_resistance( self, mlist, plotcolor ):
+  def sheet_resistance( self, mlist, plotcolor, units='mOhms/Sq' ):
     if self.begin:
-      sr_units = 'm' + symOmega + '/sq'
+      if units =='mOhms/Sq':
+        sr_units = 'm' + symOmega + '/sq'
+      elif units =='Ohms/Sq':
+        sr_units = symOmega + '/sq'
+      else:
+        return
       self.ax.set_title('Sheet Resistances at Typical Thicknesses')
       self.ax.set_xlabel('Material')
       self.ax.grid(True, which='major', axis='y')
-      self.ax.set_xlim(10, 115)
-      self.ax.get_xaxis().set_ticks( [18,38,58,78,98] )
+      self.ax.set_xlim(10, 130)
+      self.ax.get_xaxis().set_ticks( [18,38,58,78,98, 118] )
       self.ax.get_xaxis().set_ticklabels( 
           [ 'copper', 
             Catname[Category.flexo], 
             Catname[Category.inkjet],
             Catname[Category.screen],
-            Catname[Category.aerosol] ] 
+            Catname[Category.aerosol],
+            Catname[Category.carbon] ] 
           )
       self.ax.set_ylabel('Sheet Resistance in ' + sr_units)
       self.ax.grid(True, which='both', axis='y')
@@ -397,6 +409,12 @@ class Plot2D:
           thlist = divide_interval( m.thickness, 10 )
         for th in thlist:
           sr = calc_sr( br.magnitude, th)
+          if units =='mOhms/Sq':
+            pass # default SR is already mOhms/Sq
+          elif units =='Ohms/Sq':
+            sr = sr / 1000.0
+          else: 
+            exit(0)
           xdata.append( m.index )
           ydata.append( sr )
           if m.cat == Category.metal:
@@ -408,8 +426,14 @@ class Plot2D:
     self.ax.scatter(x,y, color=plotcolor, s=64)
     #self.ax.plot(x,y, marker='o', linewidth=0, color=plotcolor)
     #self.ax.set_yscale('log')
-    self.ax.get_yaxis().set_ticks( [-1,0,1,2,3] )
-    self.ax.set_yticklabels([0.1, 1, 10, 100, 1000 ])
+    if units =='mOhms/Sq':
+      self.ax.get_yaxis().set_ticks( [-1,0,1,2,3,4,5,6,7,8] )
+      self.ax.set_yticklabels([0.1, 1, 10, 100, '1K', '10K', '100K', '1M', '10M', '100M' ])
+    elif units =='Ohms/Sq':
+      self.ax.get_yaxis().set_ticks( [-3,-2,-1,0,1,2,3,4,5] )
+      self.ax.set_yticklabels([0.001, 0.01, 0.1, 1, 10, 100, '1K', '10K', '100K' ])
+    else: 
+      exit(0)
 
   def thickness( self, mlist, plotcolor ):
     if self.begin:
@@ -456,14 +480,15 @@ class Plot2D:
       self.ax.set_title(title)
       self.ax.set_xlabel('Material')
       self.ax.grid(True, which='major', axis='y')
-      self.ax.set_xlim(10, 115)
-      self.ax.get_xaxis().set_ticks( [18,38,58,78,98] )
+      self.ax.set_xlim(10, 130)
+      self.ax.get_xaxis().set_ticks( [18,38,58,78,98,118] )
       self.ax.get_xaxis().set_ticklabels( 
           [ 'copper', 
             Catname[Category.flexo], 
             Catname[Category.inkjet],
             Catname[Category.screen],
-            Catname[Category.aerosol] ] 
+            Catname[Category.aerosol],
+            Catname[Category.carbon] ] 
           )
       self.ax.set_ylabel('Trace Resistance in ' + tr_units)
       self.ax.grid(True, which='both', axis='y')
@@ -503,10 +528,48 @@ class Plot2D:
     self.ax.scatter(x,y, color=plotcolor, s=64)
     #self.ax.plot(x,y, marker='o', linewidth=0, color=plotcolor)
     #self.ax.set_yscale('log')
-    self.ax.get_yaxis().set_ticks( [-1,0,1,2,3] )
-    self.ax.set_yticklabels([0.1, 1, 10, 100, 1000 ])
+    self.ax.get_yaxis().set_ticks( [-1,0,1,2,3,4,5,6] )
+    self.ax.set_yticklabels([0.1, 1, 10, 100, '1K', '10K', '100K', '1M'])
 
   def display( self ):
+    plt.savefig('out.png', dpi=300)
+    plt.show()
+
+  def trace_resistance_vs_width( self, trace, mlist, plotcolor, title='Resistances of Trace' ):
+    if self.begin:
+      tr_units = symOmega 
+      self.ax.set_title(title)
+      self.ax.set_xlabel('Width in mm')
+      self.ax.grid(True, which='major', axis='y')
+      self.ax.set_xlim(0.9, 110)
+      self.ax.set_ylabel('Trace Resistance in ' + tr_units)
+      self.ax.grid(True, which='both', axis='x')
+      self.begin = False
+
+    if mlist is None: return
+    xdata = []
+    ydata = []
+    index = [ m.index for m in mlist ]
+    ohms = [] 
+    for m in mlist:
+      for br in [ m.r_bulk.valmin, m.r_bulk.valmax ]:
+        thlist = divide_interval( m.thickness, 10 )
+        for th in thlist:
+          sr = calc_sr_units( br.magnitude, th)
+          tr = (sr * trace.squares).to(u.ohms);
+          xdata.append( trace.width.magnitude )
+          ydata.append( tr.magnitude )
+          ohms.append( tr.magnitude )
+
+    x = np.array(xdata)
+    y = np.log10( np.array(ydata) )
+    self.ax.set_xscale('log')
+    self.ax.scatter(x,y, color=plotcolor, s=64)
+    self.ax.get_yaxis().set_ticks( [1, 2,3,4,5,6] )
+    self.ax.set_yticklabels([10, 100, '1K', '10K', '100K', '1M'])
+
+  def display( self ):
+    plt.savefig('out.png', dpi=300)
     plt.show()
 
 
@@ -520,14 +583,15 @@ def plot3d():
   plot.display()
 
 
-def plot2d_sheet_resistance():
+def plot2d_sheet_resistance( units = 'mOhms/Sq' ):
   plot = Plot2D( scatter=True)
   #plot.sheet_resistance( bymetals, 'gold' )
-  plot.sheet_resistance( [ byname['copper'] ], 'gold' )
-  plot.sheet_resistance( byflexo, 'purple' )
-  plot.sheet_resistance( byinkjet, 'black' )
-  plot.sheet_resistance( byscreen, 'cyan' )
-  plot.sheet_resistance( byaerosol, 'orange' )
+  plot.sheet_resistance( [ byname['copper'] ], 'gold', units )
+  plot.sheet_resistance( byflexo, 'purple', units )
+  plot.sheet_resistance( byinkjet, 'black', units )
+  plot.sheet_resistance( byscreen, 'cyan', units )
+  plot.sheet_resistance( byaerosol, 'orange', units )
+  plot.sheet_resistance( bycarbon, 'gray', units )
   # plot.ax.legend( [ 
   #   'copper', 
   #   Catname[Category.flexo], 
@@ -570,8 +634,10 @@ def plot2d_thickness():
 def plot2d_trace_resistance():
   signal_trace = Trace( 3*u.inch, 8*u.milliinch, 1.4*u.milliinch)
   power_trace = Trace( 2*u.inch, 100*u.milliinch, 1.4*u.milliinch)
-  trace = power_trace
-  title = 'Power Trace Resistance for 100 mils x 2 inch x 1 oz Cu'
+  heater_trace = Trace( 2*u.inch, 1*u.cm, 1.4*u.milliinch)
+  trace = heater_trace
+  #title = 'Power Trace Resistance for 100 mils x 2 inch x 1 oz Cu'
+  title = 'Heater Trace Resistance for 1 cm x 2 inch x 1 oz Cu'
   plot = Plot2D( scatter=True)
   plot.trace_resistance( trace, [ byname['copper'] ], 'gold', title )
   #plot.trace_resistance( trace, bymetals, 'gold' )
@@ -579,6 +645,7 @@ def plot2d_trace_resistance():
   plot.trace_resistance( trace, byinkjet, 'black', title )
   plot.trace_resistance( trace, byscreen, 'cyan', title )
   plot.trace_resistance( trace, byaerosol, 'orange', title )
+  plot.trace_resistance( trace, bycarbon, 'gray', title )
   # plot.ax.legend( [ 
   #   'copper', Catname[Category.flexo],
   #   Catname[Category.inkjet],
@@ -587,5 +654,26 @@ def plot2d_trace_resistance():
   #   ] )
   plot.display()
 
-plot2d_trace_resistance()
+def plot2d_carbon_resistance():
+  traces = []
+  # Note: only length and width are used
+  #for w in [ 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90, 100 ]: # millimeters
+  for w in [ 1, 2, 5, 10, 20, 50, 100 ]: # millimeters
+    traces.append( Trace( 2*u.inch, w*u.mm, 1.4*u.milliinch) )
+  #title = 'Power Trace Resistance for 100 mils x 2 inch x 1 oz Cu'
+  title = 'Heater 2-inch Trace Resistances vs Width'
+  plot = Plot2D( scatter=True )
+  for t in traces:
+    plot.trace_resistance_vs_width( t, bycarbon, 'gray', title )
+  # plot.ax.legend( [ 
+  #   'copper', Catname[Category.flexo],
+  #   Catname[Category.inkjet],
+  #   Catname[Category.screen], 
+  #   Catname[Category.aerosol] 
+  #   ] )
+  plot.display()
+
+#plot2d_trace_resistance()
+#plot2d_sheet_resistance( units = 'Ohms/Sq' )
+plot2d_carbon_resistance()
 
